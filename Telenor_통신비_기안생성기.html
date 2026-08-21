@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telenor 통신비 기안 본문 생성기</title>
+<!-- PDF 파싱: pdf.js (인터넷 연결 필요) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --border:#e2e5ea; --text:#1c2024; --muted:#6b7280;
+    --accent:#2563eb; --accent-weak:#eef4ff; --ok:#16a34a; --warn:#b45309; --warnbg:#fff7ed;
+    --mono:#0f172a; --pre:#f8fafc;
+  }
+  *{box-sizing:border-box}
+  body{font-family:'Malgun Gothic','Segoe UI',sans-serif;margin:0;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 80px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:13px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+  .card h2{font-size:14px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  /* dropzone */
+  #drop{border:2px dashed var(--border);border-radius:10px;padding:34px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s;background:var(--pre)}
+  #drop.drag{border-color:var(--accent);background:var(--accent-weak);color:var(--accent)}
+  #drop strong{color:var(--text)}
+  #fname{margin-top:10px;font-size:13px;color:var(--ok);font-weight:600}
+  /* fields */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld label{font-size:12px;color:var(--muted)}
+  input,select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--text)}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  /* table */
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+  th,td{border:1px solid var(--border);padding:4px 6px;text-align:left}
+  th{background:var(--pre);font-weight:600;font-size:12px}
+  td input{border:none;padding:4px;width:100%;border-radius:4px}
+  td input:focus{background:var(--accent-weak)}
+  td.num input{text-align:right}
+  .rowdel{cursor:pointer;color:#c0392b;text-align:center;font-weight:700;user-select:none}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn:hover{filter:brightness(1.05)}
+  .btn.ghost{background:#fff;color:var(--accent);border:1px solid var(--accent)}
+  .btn.sm{padding:6px 12px;font-size:12px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .rate-note{background:var(--warnbg);border:1px solid #fed7aa;color:var(--warn);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:10px}
+  .krw{font-weight:700;color:var(--accent)}
+  /* output */
+  #out{font-size:13px;background:var(--pre);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;color:var(--text);min-height:120px}
+  #out p{margin:2px 0}
+  #out table{margin:8px 0;border:1px solid #333;border-collapse:collapse;width:auto;min-width:520px}
+  #out th,#out td{border:1px solid #333;padding:4px 8px;font-size:12px}
+  #out td.n{text-align:right}
+  #out tr.sum td{font-weight:700;background:#f1f5f9}
+  .toolbar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px;flex-wrap:wrap}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px}
+  .hidden{display:none}
+  .flash{color:var(--ok);font-size:12px;font-weight:600;align-self:center}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Telenor 통신비 기안 본문 생성기</h1>
+  <p class="sub">Telenor Connexion invoice(PDF)를 올리면 결제요청서 <b>본문</b>을 복붙용 텍스트로 만들어 줍니다. (제목·속성 필드는 이전 기안 복사분 유지)</p>
+
+  <!-- STEP 1 -->
+  <div class="card">
+    <h2><span class="step">1</span> Invoice PDF 업로드</h2>
+    <div id="drop">
+      여기에 <strong>Telenor invoice PDF</strong>를 끌어다 놓거나 클릭해서 선택하세요.
+      <div id="fname"></div>
+    </div>
+    <input type="file" id="file" accept="application/pdf" class="hidden">
+    <div class="hint">※ PDF 해석과 실시간 환율에 인터넷 연결이 필요합니다.</div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card hidden" id="editCard">
+    <h2><span class="step">2</span> 추출 결과 확인 · 수정</h2>
+    <div class="grid">
+      <div class="fld"><label>Invoice No.</label><input id="f_invoice"></div>
+      <div class="fld"><label>Customer No.</label><input id="f_customer"></div>
+      <div class="fld"><label>청구기간 (Period)</label><input id="f_period"></div>
+      <div class="fld"><label>결제기한 (Due Date)</label><input id="f_due"></div>
+    </div>
+
+    <h2 style="margin-top:18px"><span class="step" style="background:var(--muted)">표</span> 내용 라인아이템</h2>
+    <table id="itemsTbl">
+      <thead><tr>
+        <th style="width:34px">No.</th><th>항목 (내용/기간)</th>
+        <th style="width:90px">수량</th><th style="width:80px">단가($)</th><th style="width:110px">총액($)</th>
+        <th style="width:34px"></th>
+      </tr></thead>
+      <tbody id="itemsBody"></tbody>
+    </table>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost sm" id="addRow">+ 행 추가</button>
+      <div class="fld" style="margin-left:auto">
+        <label>합계 총액($) — invoice 총액(수정 가능)</label>
+        <input id="f_total" class="num" style="text-align:right;width:160px">
+        <div class="flash" id="totalWarn" style="color:var(--warn)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="card hidden" id="rateCard">
+    <h2><span class="step">3</span> 환율 (USD → KRW)</h2>
+    <div class="row">
+      <button class="btn ghost sm" id="fetchRate">실시간 참고환율 불러오기</button>
+      <a class="btn ghost sm" href="http://www.smbs.biz/ExRate/TodayExRate.jsp" target="_blank" rel="noopener">smbs 매매기준율 열기 ↗</a>
+      <div class="fld">
+        <label>적용 환율 (1 USD = ? 원)</label>
+        <input id="f_rate" class="num" style="width:140px;text-align:right" placeholder="예: 1380">
+      </div>
+      <div class="fld">
+        <label>환율 기준일</label>
+        <input id="f_ratedate" style="width:140px">
+      </div>
+      <div class="flash" id="rateFlash"></div>
+    </div>
+    <div class="rate-note">
+      실제 <b>카드 청구 원화금액</b>은 결제 후 확정됩니다. 정확도를 위해 smbs 매매기준율 또는 카드사 적용환율을 직접 입력하는 것을 권장합니다.
+      (자동값은 open.er-api.com 참고용 예상치)
+    </div>
+    <p class="hint" style="margin-top:12px">원화 환산 합계: <span class="krw" id="krwPreview">–</span></p>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="card hidden" id="outCard">
+    <h2><span class="step">4</span> 기안서 본문 (복사해서 붙여넣기)</h2>
+    <div class="toolbar">
+      <button class="btn ghost sm" id="copyTable">표만 복사 (TSV)</button>
+      <button class="btn" id="copyAll">본문 전체 복사</button>
+      <span class="flash" id="copyFlash"></span>
+    </div>
+    <div id="out"></div>
+    <p class="hint">"본문 전체 복사"는 <b>실제 표 형태</b>로 복사됩니다 → Flex 편집기에 붙여넣으면 표로 들어갑니다. (표가 안 들어가는 편집기라면 텍스트로 자동 대체됩니다.)</p>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const $ = id => document.getElementById(id);
+const drop = $('drop'), fileInput = $('file');
+
+/* ---------- Telenor 항목 한국어 번역 사전 ---------- */
+const KO_DICT = [
+  [/^SIM Pause Mode Entry$/i,                           'SIM 일시정지(Pause) 전환'],
+  [/^IoT Subscription Bundled Traffic\s*-\s*Monthly Fee$/i, 'IoT 회선 번들 데이터 월정액'],
+  [/^IoT Subscription Pause Mode\s*-\s*Monthly Fee$/i,      'IoT 회선 일시정지(Pause) 월정액'],
+  [/^Data\s*-\s*Traffic fee$/i,                         '데이터 트래픽 요금'],
+];
+function translateItem(desc){
+  const t = desc.trim();
+  for (const [re, ko] of KO_DICT) if (re.test(t)) return ko;
+  return t; // 사전에 없는 항목은 원문 유지
+}
+let printedTotal = '';   // invoice에 인쇄된 총액(검증용)
+
+/* ---------- 업로드 UI ---------- */
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('drag');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file){
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
+    alert('PDF 파일을 올려주세요.'); return;
+  }
+  $('fname').textContent = '읽는 중… ' + file.name;
+  try{
+    const buf = await file.arrayBuffer();
+    const data = await parsePdf(buf);
+    $('fname').textContent = '✓ ' + file.name;
+    populate(data);
+  }catch(err){
+    console.error(err);
+    $('fname').textContent = '';
+    alert('PDF 해석에 실패했습니다. 인터넷 연결(pdf.js) 상태를 확인하거나, 표를 수동으로 입력하세요.\n' + err.message);
+    // 실패해도 빈 편집 폼은 열어줌
+    populate({invoice:'',customer:'',period:'',due:'',items:[],total:''});
+  }
+}
+
+/* ---------- PDF 파싱 ---------- */
+async function parsePdf(buf){
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let all = [];               // 모든 텍스트 조각 {str,x,y,w,page}
+  let lines = [];             // 라인 단위로 묶은 것
+  for (let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    let pageItems = tc.items.map(it => ({
+      str: it.str, x: it.transform[4], y: it.transform[5],
+      w: it.width, page: p
+    })).filter(it => it.str.trim() !== '');
+    all = all.concat(pageItems);
+    // y 좌표로 라인 클러스터링 (같은 페이지, y 차이 <=3)
+    pageItems.sort((a,b)=> b.y - a.y || a.x - b.x);
+    let cur = null;
+    for (const it of pageItems){
+      if (!cur || Math.abs(cur.y - it.y) > 3){
+        cur = {y:it.y, page:p, items:[it]}; lines.push(cur);
+      } else cur.items.push(it);
+    }
+  }
+  lines.forEach(l => l.items.sort((a,b)=>a.x-b.x));
+  const lineText = l => l.items.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim();
+  const fullText = lines.map(lineText).join('\n');
+
+  /* --- 헤더 필드 --- */
+  const dateRe = /\d{4}-\d{2}-\d{2}/;
+  const findVal = (labelRe) => {
+    for (const l of lines){ const t = lineText(l); if (labelRe.test(t)) return t; }
+    return '';
+  };
+  const invoiceNo = (fullText.match(/Invoice\s+(\d{5,})/) || [])[1]
+                 || (fullText.match(/Invoice No\.?\s*(\d{5,})/) || [])[1] || '';
+  const customerNo = (fullText.match(/\b([A-Z]\d{6,})\b/) || [])[1] || '';
+  const dateOf  = (findVal(/Date of Invoice/).match(dateRe) || [])[0] || '';
+  const dueDate = (findVal(/Due Date/).match(dateRe) || [])[0] || '';
+  const pStart  = (findVal(/Period Start/).match(dateRe) || [])[0] || '';
+  const pEnd    = (findVal(/Period End/).match(dateRe) || [])[0] || '';
+  const period  = (pStart && pEnd) ? `${pStart} ~ ${pEnd}` : '';
+
+  /* --- 표 헤더 위치(우측 정렬 컬럼 앵커) --- */
+  let headerLine = lines.find(l => {
+    const t = lineText(l);
+    return /Description/i.test(t) && /Amount/i.test(t) && /Price/i.test(t);
+  });
+  let anchors = {};
+  if (headerLine){
+    for (const it of headerLine.items){
+      const s = it.str.trim();
+      if (['Qty','Price','Amount','Period','Description'].includes(s))
+        anchors[s] = { right: it.x + it.w, left: it.x };
+    }
+  }
+  const A = (n,d)=> anchors[n] ? anchors[n].right : d;
+  const qtyR = A('Qty', 360), priceR = A('Price', 430), amtR = A('Amount', 520);
+  const descLeft = anchors.Description ? anchors.Description.left : 40;
+
+  /* --- 데이터 라인 파싱 --- */
+  // 숫자 조각: 공백 천단위(예: "1 234.56", "2 000")도 숫자로 인정
+  const numFrag = s => { const t=s.trim(); return /\d/.test(t) && /^-?[\d][\d .,]*$/.test(t); };
+  const periodRe = /\d{2}-\d{2}-\d{2}\.\.\d{2}-\d{2}-\d{2}/;
+  const items = [];
+  let inTable = false;
+  for (const l of lines){
+    const t = lineText(l);
+    if (headerLine && l === headerLine){ inTable = true; continue; }
+    if (!inTable) continue;
+    if (/Interest on Overdue|Reverse\s+charge|Net Amount|Total Payment/i.test(t)) break;
+
+    // 컬럼별 조각 분류
+    const cols = {qty:[], price:[], amount:[]};
+    let desc = [], period_ = '';
+    for (const it of l.items){
+      const s = it.str.trim();
+      if (!s) continue;
+      if (periodRe.test(s)){ period_ = s; continue; }
+      const r = it.x + it.w;
+      if (numFrag(s) && r > (descLeft + (qtyR-descLeft)*0.55)){
+        // 숫자 → 가장 가까운 우측정렬 컬럼에 배정
+        const dq=Math.abs(r-qtyR), dp=Math.abs(r-priceR), da=Math.abs(r-amtR);
+        const m=Math.min(dq,dp,da);
+        if (m===da) cols.amount.push(it); else if (m===dp) cols.price.push(it); else cols.qty.push(it);
+      } else {
+        desc.push(s);
+      }
+    }
+    const merge = arr => arr.sort((a,b)=>a.x-b.x).map(i=>i.str.trim()).join('').replace(/\s+/g,'');
+    const qty = merge(cols.qty), price = merge(cols.price), amount = merge(cols.amount);
+    const descStr = desc.join(' ').replace(/\s+/g,' ').trim();
+
+    // amount(마지막 숫자)가 있어야 유효 라인. 그룹헤더(PP…)·빈줄 스킵
+    if (!amount) continue;
+    if (!descStr && !qty && !price) continue;
+    items.push({
+      desc: translateItem(descStr) + (period_ ? ` (${period_})` : ''),
+      qty, price, amount
+    });
+  }
+
+  // 합계: 인쇄된 총액(값이 라벨과 다른 줄에 있을 수 있음) → 없으면 라인 합산
+  const numify = s => parseFloat((s||'').replace(/\s/g,'').replace(/,/g,''));
+  const grabNums = t => (t.match(/-?\d[\d ]*\.\d{2}/g)||[]).map(x=>x.replace(/\s/g,''));
+  let printed = '';
+  const usdLine = lines.find(l => /\bUSD\b/.test(lineText(l)) && grabNums(lineText(l)).length);
+  if (usdLine){ const n = grabNums(lineText(usdLine)); printed = n[n.length-1]; }
+  if (!printed){
+    for (const key of [/Total Payment/i, /Net Amount/i]){
+      const idx = lines.findIndex(l => key.test(lineText(l)));
+      if (idx >= 0){
+        for (let j=idx; j<Math.min(idx+3, lines.length); j++){
+          const n = grabNums(lineText(lines[j])); if (n.length){ printed = n[n.length-1]; break; }
+        }
+      }
+      if (printed) break;
+    }
+  }
+  const sum = items.reduce((s,i)=> s + (numify(i.amount)||0), 0);
+  const total = printed || (items.length ? sum.toFixed(2) : '');
+
+  return {invoice:invoiceNo, customer:customerNo, period, due:dueDate, items, total, printed};
+}
+
+/* ---------- 편집 폼 채우기 ---------- */
+function populate(d){
+  $('editCard').classList.remove('hidden');
+  $('rateCard').classList.remove('hidden');
+  $('outCard').classList.remove('hidden');
+  $('f_invoice').value = d.invoice || '';
+  $('f_customer').value = d.customer || '';
+  $('f_period').value = d.period || '';
+  $('f_due').value = d.due || '';
+  $('f_total').value = d.total || '';
+  printedTotal = d.printed || '';
+  const body = $('itemsBody'); body.innerHTML='';
+  (d.items.length ? d.items : [{desc:'',qty:'',price:'',amount:''}]).forEach(addRow);
+  render();
+}
+
+function addRow(item){
+  item = item || {desc:'',qty:'',price:'',amount:''};
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    `<td class="idx"></td>
+     <td><input value="${esc(item.desc)}" data-k="desc"></td>
+     <td class="num"><input value="${esc(item.qty)}" data-k="qty"></td>
+     <td class="num"><input value="${esc(item.price)}" data-k="price"></td>
+     <td class="num"><input value="${esc(item.amount)}" data-k="amount"></td>
+     <td class="rowdel" title="행 삭제">×</td>`;
+  tr.querySelector('.rowdel').onclick = () => { tr.remove(); reindex(); render(); };
+  tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', render));
+  $('itemsBody').appendChild(tr);
+  reindex();
+}
+function reindex(){ [...$('itemsBody').children].forEach((tr,i)=> tr.querySelector('.idx').textContent = i+1); }
+function esc(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+$('addRow').onclick = () => { addRow(); };
+['f_invoice','f_customer','f_period','f_due','f_total','f_rate','f_ratedate'].forEach(id=>$(id).addEventListener('input',render));
+
+/* ---------- 환율 ---------- */
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+$('f_ratedate').value = todayStr();
+
+$('fetchRate').onclick = async () => {
+  $('rateFlash').textContent = '불러오는 중…';
+  try{
+    const r = await fetch('https://open.er-api.com/v6/latest/USD');
+    const j = await r.json();
+    const krw = j && j.rates && j.rates.KRW;
+    if (!krw) throw new Error('KRW 없음');
+    $('f_rate').value = Math.round(krw*100)/100;
+    $('f_ratedate').value = (j.time_last_update_utc ? new Date(j.time_last_update_utc).toISOString().slice(0,10) : todayStr());
+    $('rateFlash').textContent = '✓ 참고환율 적용됨';
+    render();
+  }catch(e){
+    $('rateFlash').textContent = '자동 불러오기 실패 — 수동 입력하세요';
+  }
+};
+
+/* ---------- 본문 생성 ---------- */
+function collectItems(){
+  return [...$('itemsBody').children].map(tr=>{
+    const g=k=>tr.querySelector(`input[data-k="${k}"]`).value.trim();
+    return {desc:g('desc'), qty:g('qty'), price:g('price'), amount:g('amount')};
+  }).filter(r=>r.desc||r.amount);
+}
+const numify = s => parseFloat((s||'').replace(/\s/g,'').replace(/,/g,''));
+const fmtUSD = n => isNaN(n)?'':n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtKRW = n => isNaN(n)?'':Math.round(n).toLocaleString('ko-KR');
+const fmtQty = n => isNaN(n)?'':(Number.isInteger(n)?n.toLocaleString('en-US'):n.toLocaleString('en-US',{maximumFractionDigits:2}));
+
+const esch = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let tableHTML='', tablePlain='', bodyHTML='', bodyPlain='';
+
+function render(){
+  const items = collectItems();
+  let totalUSD = numify($('f_total').value);
+  if (isNaN(totalUSD)) totalUSD = items.reduce((s,i)=>s+(numify(i.amount)||0),0);
+  const rate = numify($('f_rate').value);
+  const totalKRW = isNaN(rate) ? null : totalUSD*rate;
+  const krwCell = totalKRW==null ? '[환율 입력]' : fmtKRW(totalKRW);
+
+  // 라인 합계 vs invoice 총액 검증
+  const rowsSum = items.reduce((s,i)=>s+(numify(i.amount)||0),0);
+  if (printedTotal && Math.abs(rowsSum - numify(printedTotal)) > 0.01){
+    $('totalWarn').textContent = `⚠ 라인합 ${fmtUSD(rowsSum)} ≠ invoice ${fmtUSD(numify(printedTotal))}`;
+  } else $('totalWarn').textContent = '';
+
+  const head = ['No.','항목','수량','단가($)','총액($)','총액(원)'];
+  let sumLineKRW = 0;
+  const rows = items.map((it,i)=>{
+    const amt = numify(it.amount);
+    let lineKRW = '';
+    if (totalKRW!=null && !isNaN(amt)){ const v = Math.round(amt*rate); sumLineKRW += v; lineKRW = fmtKRW(v); }
+    return [i+1, it.desc, it.qty, it.price, fmtUSD(amt) || it.amount, lineKRW];
+  });
+  const sumQty = items.reduce((s,it)=>{ const q=numify(it.qty); return s + (isNaN(q)?0:q); }, 0);
+  const sumKRWtxt = totalKRW==null ? '[환율 입력]' : fmtKRW(sumLineKRW);
+  // 텍스트(TSV) 폴백용 합계행: 합계 | (빈칸) | 수량합 | | 총액$ | 총액원
+  const sumRow = ['합계','', fmtQty(sumQty), '', fmtUSD(totalUSD), sumKRWtxt];
+
+  // --- HTML 표 (리치 붙여넣기용, 인라인 스타일로 여백/폭 지정) ---
+  const COL = [
+    {w:'38px', al:'center'}, // No.
+    {w:'340px',al:'left'},   // 항목
+    {w:'72px', al:'right'},  // 수량
+    {w:'78px', al:'right'},  // 단가
+    {w:'104px',al:'right'},  // 총액$
+    {w:'116px',al:'right'},  // 총액원
+  ];
+  const colgroup = `<colgroup>${COL.map(c=>`<col style="width:${c.w}">`).join('')}</colgroup>`;
+  const cell = (tag, txt, ci, extra='') => {
+    const nowrap = ci===1 ? '' : 'white-space:nowrap;';
+    return `<${tag} style="border:1px solid #333;padding:6px 11px;text-align:${COL[ci].al};${nowrap}${extra}">${esch(txt)}</${tag}>`;
+  };
+  const th = head.map((h,i)=>cell('th',h,i,'background:#f1f5f9;font-weight:700;')).join('');
+  const trHtml = (r) => `<tr>` + r.map((c,ci)=>cell('td',c,ci)).join('') + `</tr>`;
+  // 합계행: '합계'를 No.+항목 칸에 병합(colspan=2), 수량·총액 합계 표시
+  const sumBg = 'font-weight:700;background:#f7f8fa;';
+  const sumTr =
+    `<tr>`+
+    `<td colspan="2" style="border:1px solid #333;padding:6px 11px;text-align:center;${sumBg}">합계</td>`+
+    cell('td', fmtQty(sumQty), 2, sumBg)+
+    cell('td', '', 3, sumBg)+
+    cell('td', fmtUSD(totalUSD), 4, sumBg)+
+    cell('td', sumKRWtxt, 5, sumBg)+
+    `</tr>`;
+  tableHTML =
+    `<table style="border-collapse:collapse;border:1px solid #333;font-size:13px;font-family:inherit">`+
+    colgroup + `<thead><tr>${th}</tr></thead><tbody>`+
+    rows.map(r=>trHtml(r)).join('')+
+    sumTr+
+    `</tbody></table>`;
+
+  // --- 표 TSV (텍스트 폴백) ---
+  tablePlain = [head, ...rows, sumRow].map(r=>r.join('\t')).join('\n');
+
+  const rateTxt = isNaN(rate) ? '[환율 입력]' : rate.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const rateDate = $('f_ratedate').value.trim();
+  const rateNote = `** 1 USD = ${rateTxt} 원 기준${rateDate?` (${rateDate})`:''}`;
+
+  // --- 본문 전체 (리치 HTML) ---
+  const P = t => `<p>${t}</p>`;
+  bodyHTML =
+    P('1. 목 적') +
+    P('&nbsp;- Telenor IoT 회선(SIM) 통신비를 지불하고자 함') +
+    P('<br>') + P('2. 내 용') + tableHTML +
+    P('* VAT 없음 (Reverse charge, Article 44 &amp; 196 VAT Directive)') +
+    P(esch(rateNote)) +
+    P('<br>') + P('3. 결제방법') +
+    P('&nbsp;- 카드') +
+    P('&nbsp;- 인보이스 내 View and pay online now 클릭 시 결제 링크로 이동');
+
+  // --- 본문 전체 (텍스트 폴백) ---
+  bodyPlain =
+`1. 목 적
+ - Telenor IoT 회선(SIM) 통신비를 지불하고자 함
+
+2. 내 용
+${tablePlain}
+* VAT 없음 (Reverse charge, Article 44 & 196 VAT Directive)
+${rateNote}
+
+3. 결제방법
+ - 카드
+ - 인보이스 내 View and pay online now 클릭 시 결제 링크로 이동`;
+
+  $('out').innerHTML = bodyHTML;
+  $('krwPreview').textContent = totalKRW==null
+    ? '환율을 입력하세요'
+    : `${fmtKRW(totalKRW)} 원  ( $${fmtUSD(totalUSD)} × ${rateTxt} )`;
+}
+
+/* ---------- 복사 (리치 HTML + 텍스트 폴백) ---------- */
+async function copyRich(html, plain, el){
+  try{
+    const item = new ClipboardItem({
+      'text/html': new Blob([html],{type:'text/html'}),
+      'text/plain': new Blob([plain],{type:'text/plain'})
+    });
+    await navigator.clipboard.write([item]);
+    el.textContent='✓ 복사됨';
+  }catch(e){
+    try{ await navigator.clipboard.writeText(plain); el.textContent='✓ 복사됨(텍스트)'; }
+    catch(_){ el.textContent='복사 실패'; }
+  }
+  setTimeout(()=>el.textContent='',1600);
+}
+$('copyAll').onclick = () => copyRich(bodyHTML, bodyPlain, $('copyFlash'));
+$('copyTable').onclick = () => copyRich(tableHTML, tablePlain, $('copyFlash'));
+</script>
+</body>
+</html>
