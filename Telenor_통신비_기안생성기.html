@@ -258,7 +258,7 @@ async function parsePdf(buf){
     const t = lineText(l);
     if (headerLine && l === headerLine){ inTable = true; continue; }
     if (!inTable) continue;
-    if (/Interest on Overdue|Reverse\s+charge|Net Amount|Total Payment/i.test(t)) break;
+    if (/Interest on Overdue|Reverse\s+charge/i.test(t)) break;
 
     // 컬럼별 조각 분류
     const cols = {qty:[], price:[], amount:[]};
@@ -281,6 +281,9 @@ async function parsePdf(buf){
     const qty = merge(cols.qty), price = merge(cols.price), amount = merge(cols.amount);
     const descStr = desc.join(' ').replace(/\s+/g,' ').trim();
 
+    // 요약/합계 행(Subtotal, TOTAL USD, Net Amount, VAT, Tax 등)은 항목에서 제외
+    if (/^(sub[\s-]*total|grand\s*total|total|net\s*amount|amount\s*due|balance|vat\b|tax\b)/i.test(descStr)) continue;
+
     // amount(마지막 숫자)가 있어야 유효 라인. 그룹헤더(PP…)·빈줄 스킵
     if (!amount) continue;
     if (!descStr && !qty && !price) continue;
@@ -292,7 +295,11 @@ async function parsePdf(buf){
 
   // 합계: 인쇄된 총액(값이 라벨과 다른 줄에 있을 수 있음) → 없으면 라인 합산
   const numify = s => parseFloat((s||'').replace(/\s/g,'').replace(/,/g,''));
-  const grabNums = t => (t.match(/-?\d[\d ]*\.\d{2}/g)||[]).map(x=>x.replace(/\s/g,''));
+  // 공백 천단위(1 335.48)와 콤마 천단위(11,325.00) 모두 인식
+  const grabNums = t => {
+    const j = t.replace(/(\d) (\d)/g,'$1$2');            // 공백 천단위 결합
+    return (j.match(/-?\d[\d,]*\.\d{2}/g)||[]).map(x=>x.replace(/,/g,''));
+  };
   let printed = '';
   const usdLine = lines.find(l => /\bUSD\b/.test(lineText(l)) && grabNums(lineText(l)).length);
   if (usdLine){ const n = grabNums(lineText(usdLine)); printed = n[n.length-1]; }
@@ -308,7 +315,8 @@ async function parsePdf(buf){
     }
   }
   const sum = items.reduce((s,i)=> s + (numify(i.amount)||0), 0);
-  const total = printed || (items.length ? sum.toFixed(2) : '');
+  // 합계는 화면 표의 항목 합산 기준(표와 정확히 일치). printed는 검증(경고)용.
+  const total = items.length ? sum.toFixed(2) : (printed || '');
 
   return {invoice:invoiceNo, customer:customerNo, period, due:dueDate, items, total, printed};
 }
@@ -395,7 +403,7 @@ function render(){
 
   // 라인 합계 vs invoice 총액 검증
   const rowsSum = items.reduce((s,i)=>s+(numify(i.amount)||0),0);
-  if (printedTotal && Math.abs(rowsSum - numify(printedTotal)) > 0.01){
+  if (printedTotal && Math.abs(rowsSum - numify(printedTotal)) > 1){
     $('totalWarn').textContent = `⚠ 라인합 ${fmtUSD(rowsSum)} ≠ invoice ${fmtUSD(numify(printedTotal))}`;
   } else $('totalWarn').textContent = '';
 
