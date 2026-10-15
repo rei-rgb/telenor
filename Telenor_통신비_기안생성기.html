@@ -470,7 +470,10 @@ function render(){
     P(esch(rateNote)) +
     P('<br>') + P('3. 결제방법') +
     P('&nbsp;- 카드') +
-    P('&nbsp;- 인보이스 내 View and pay online now 클릭 시 결제 링크로 이동');
+    P('&nbsp;- 인보이스 내 View and pay online now 클릭 시 결제 링크로 이동') +
+    P('<br>') + P('4. 참고사항') +
+    P('&nbsp;- TSIMACTDET : 해당 기간 USIM 개통') +
+    P('&nbsp;- TSIMSTADET : 전체 사용 USIM 상태 현황 (대기, 개통)');
 
   // --- 본문 전체 (텍스트 폴백) ---
   bodyPlain =
@@ -484,7 +487,11 @@ ${rateNote}
 
 3. 결제방법
  - 카드
- - 인보이스 내 View and pay online now 클릭 시 결제 링크로 이동`;
+ - 인보이스 내 View and pay online now 클릭 시 결제 링크로 이동
+
+4. 참고사항
+ - TSIMACTDET : 해당 기간 USIM 개통
+ - TSIMSTADET : 전체 사용 USIM 상태 현황 (대기, 개통)`;
 
   $('out').innerHTML = bodyHTML;
   $('krwPreview').textContent = totalKRW==null
